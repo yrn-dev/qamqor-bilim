@@ -5,11 +5,11 @@
  *   POST /api/adapter  — ИИ-адаптер урока «1 в 4» (Diffit + LittleLit + PECS + Quiz)
  *   POST /api/todo     — умный дробитель задач
  */
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 const path = require("path");
 const express = require("express");
 const { chatJSON, config } = require("./llm");
-const { adapterSystem, adapterUser, todoSystem, todoUser, analystSystem, analystUser } = require("./prompts");
+const { adapterSystem, adapterUser, topicTextSystem, topicTextUser, todoSystem, todoUser, analystSystem, analystUser, friendSystem, friendUser } = require("./prompts");
 const db = require("./db");
 const { localAdapterFallback, localTodoFallback } = require("./fallback");
 
@@ -110,17 +110,30 @@ app.get("/api/health", (req, res) => {
 });
 
 app.post("/api/adapter", async (req, res) => {
-  const title = str(req.body?.title, 200);
-  const text = str(req.body?.text, 8000);
+  const title = str(req.body?.title, 200).trim();
+  const text = str(req.body?.text, 8000).trim();
   const lang = req.body?.lang === "kk" ? "kk" : "ru";
-  if (!text.trim()) return res.status(400).json({ error: "text required" });
+  if (!text && !title) return res.status(400).json({ error: "text or title required" });
 
   try {
-    const raw = await chatJSON(adapterSystem(lang), adapterUser(title, text));
-    res.json({ ...normalizeAdapter(raw, title, text, lang), source: "ai" });
+    let sourceText = text;
+    if (!sourceText) {
+      // Режим «только тема»: ИИ сам пишет учебный абзац по теме, потом адаптирует его
+      const gen = await chatJSON(topicTextSystem(lang), topicTextUser(title), { attempts: 1 });
+      sourceText = str(gen?.text, 4000).trim();
+      if (!sourceText) throw new Error("topic text generation returned empty");
+    }
+    const raw = await chatJSON(adapterSystem(lang), adapterUser(title, sourceText));
+    res.json({ ...normalizeAdapter(raw, title, sourceText, lang), source: "ai" });
   } catch (err) {
     console.warn("[adapter] LLM failed, using local fallback:", err.message);
-    res.json({ ...localAdapterFallback(title || "Текст", text, lang), source: "fallback" });
+    // Фолбэк без LLM: по теме — короткая заглушка-абзац, чтобы адаптер отработал на правилах
+    const stub =
+      text ||
+      (lang === "kk"
+        ? `Бүгінгі тақырып — «${title}». Бұл қызықты әрі маңызды тақырып.`
+        : `Сегодня тема урока — «${title}». Это важная и интересная тема.`);
+    res.json({ ...localAdapterFallback(title || "Текст", stub, lang), source: "fallback" });
   }
 });
 
@@ -227,7 +240,104 @@ app.post("/api/insights", async (req, res) => {
   }
 });
 
+// ---------- «Твой друг»: чат ребёнка с ИИ-другом ----------
+
+const CHAT_SECTIONS = ["hub", "library", "reader", "adapter", "board", "todo", "schedule", "aac"];
+
+app.get("/api/messages", (req, res) => {
+  const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 30, 200));
+  res.json({ items: db.recentMessages(limit), total: db.countMessages() });
+});
+
+app.post("/api/usage", (req, res) => {
+  const section = CHAT_SECTIONS.includes(req.body?.section) ? req.body.section : null;
+  if (!section) return res.status(400).json({ error: "unknown section" });
+  db.addUsage(section);
+  res.json({ ok: true, section });
+});
+
+app.post("/api/chat", async (req, res) => {
+  const text = str(req.body?.text, 500).trim();
+  const lang = req.body?.lang === "kk" ? "kk" : "ru";
+  if (!text) return res.status(400).json({ error: "text required" });
+
+  db.addMessage("child", text, lang);
+  // Двойная запись в старую таблицу — чтобы «Аналитик речи» видел те же реплики
+  db.addUtterance(text, lang);
+  const history = db.recentMessages(11);
+
+  try {
+    const raw = await chatJSON(friendSystem(lang), friendUser(history.slice(0, -1), text), {
+      attempts: 1,
+      timeoutMs: 45000,
+    });
+    const reply = str(raw?.reply, 600).trim() || (lang === "kk" ? "Мен сені тыңдап отырмын 💛" : "Я тебя слушаю 💛");
+    db.addMessage("friend", reply, lang);
+    res.json({ child: text, friend: reply, source: "ai" });
+  } catch (err) {
+    console.warn("[chat] LLM failed, using local reply:", err.message);
+    const fallbackReply =
+      lang === "kk"
+        ? "Мен сені тыңдап отырмын. Баяу әрі мұқият айт — мен қасыңдамын 💛"
+        : "Я тебя слушаю. Расскажи спокойно, по чуть-чуть — я рядом 💛";
+    db.addMessage("friend", fallbackReply, lang);
+    res.json({ child: text, friend: fallbackReply, source: "fallback" });
+  }
+});
+
+// ---------- Родительская страница (PIN-доступ) ----------
+
+const PARENT_PIN = String(process.env.PARENT_PIN || "2025").trim();
+const PARENT_COOKIE = "qamqor_parent=ok";
+
+function isParent(req) {
+  const raw = req.headers.cookie || "";
+  return raw.split(";").some((c) => c.trim() === PARENT_COOKIE);
+}
+
+app.post("/api/parent/login", (req, res) => {
+  const pin = String(req.body?.pin ?? "").trim();
+  if (!pin || pin !== PARENT_PIN) return res.status(401).json({ error: "bad pin" });
+  res.setHeader(
+    "Set-Cookie",
+    `${PARENT_COOKIE}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
+  );
+  res.json({ ok: true });
+});
+
+app.post("/api/parent/logout", (req, res) => {
+  res.setHeader(
+    "Set-Cookie",
+    `qamqor_parent=; Path=/; HttpOnly; Max-Age=0`
+  );
+  res.json({ ok: true });
+});
+
+app.get("/api/parent/messages", (req, res) => {
+  if (!isParent(req)) return res.status(401).json({ error: "unauthorized" });
+  res.json({ items: db.recentMessages(300), stats: db.messageStats() });
+});
+
+app.get("/api/parent/stats", (req, res) => {
+  if (!isParent(req)) return res.status(401).json({ error: "unauthorized" });
+  res.json({
+    messages: db.messageStats(),
+    sections: db.getUsage(),
+    utterances: db.countUtterances(),
+  });
+});
+
 // ---------- static frontend ----------
+
+// Локальное семейное приложение: файлы всегда свежие, без кэша браузера,
+// чтобы обновлённый код гарантированно доходил до экрана после каждого перезапуска.
+app.use((req, res, next) => {
+  if (req.method === "GET" && req.path.startsWith("/") && !req.path.startsWith("/api/")) {
+    res.set("Cache-Control", "no-store, max-age=0, must-revalidate");
+    res.set("Pragma", "no-cache");
+  }
+  next();
+});
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 

@@ -1,0 +1,573 @@
+
+    /* ===================================================================== */
+    /* 1. TACTILE BENTO DESIGN TOKENS & ACCESSIBILITY PROFILES               */
+    /* ===================================================================== */
+    :root {
+      --bg-canvas: #FAF8F5;
+      --bg-card: #FFFFFF;
+      --bg-soft: #F3EFE8;
+      --border-card: #E6E1D6;
+      --text-main: #1E242B;
+      --text-muted: #5A6470;
+
+      --sage: #2E7D6B;
+      --sage-soft: #E4F2EE;
+      --amber: #D9822B;
+      --amber-soft: #FDF0E1;
+      --sky: #3B7EA1;
+      --sky-soft: #E5F1F8;
+      --plum: #6D597A;
+      --plum-soft: #F1ECF4;
+
+      --spoken-bg: #FDE68A;
+      --spoken-text: #1E242B;
+      --ruler-bg: #FFF7E6;
+
+      --base-scale: 1;
+      --reader-size: 20px;
+      --reader-letter: normal;
+      --reader-word: normal;
+      --reader-line: 1.85;
+      --touch-min: 48px;
+    }
+
+    /* Profile 2: Dyslexia / ZPR (Warm Cream Paper + Wide Spacing) */
+    body.profile-dyslexia {
+      --bg-canvas: #FDF6E3;
+      --bg-card: #FFFDF7;
+      --bg-soft: #F5EBD0;
+      --border-card: #E4D4AE;
+      --reader-size: 22px;
+      --reader-letter: 0.06em;
+      --reader-word: 0.18em;
+      --reader-line: 2.05;
+    }
+
+    /* Profile 3: ASD / Autism (Ultra-Calm Low-Stimulus, Zero Motion) */
+    body.profile-asd {
+      --bg-canvas: #F1F5F3;
+      --bg-card: #FAFDFB;
+      --bg-soft: #E6EEEA;
+      --border-card: #CFDCD5;
+    }
+    body.profile-asd *,
+    body.profile-asd *::before,
+    body.profile-asd *::after {
+      transition: none !important;
+      animation: none !important;
+    }
+
+    /* Profile 4: ADHD / Focus Spotlight */
+    body.profile-adhd {
+      --bg-canvas: #F4F6F8;
+      --bg-card: #FFFFFF;
+      --bg-soft: #EBF0F5;
+      --border-card: #D5DFE9;
+    }
+    body.profile-adhd .adhd-dimmable {
+      opacity: 0.55;
+    }
+    body.profile-adhd .adhd-dimmable:hover,
+    body.profile-adhd .adhd-dimmable:focus-within {
+      opacity: 1;
+    }
+
+    /* Profile 5: Low Vision / Motor Impairments (WCAG AAA High Contrast + 125% Scale) */
+    body.profile-vision {
+      --bg-canvas: #121417;
+      --bg-card: #1B1F24;
+      --bg-soft: #262C34;
+      --border-card: #FFD166;
+      --text-main: #FFFFFF;
+      --text-muted: #E2E8F0;
+
+      --sage: #FFD166;
+      --sage-soft: #2A2E35;
+      --amber: #FFD166;
+      --amber-soft: #2A2E35;
+      --sky: #7DD3FC;
+      --sky-soft: #222B35;
+      --plum: #F9A8D4;
+      --plum-soft: #2D2330;
+
+      --spoken-bg: #FFD166;
+      --spoken-text: #121417;
+      --ruler-bg: #292E36;
+
+      --reader-size: 25px;
+      --reader-letter: 0.04em;
+      --reader-word: 0.14em;
+      --reader-line: 1.95;
+      --touch-min: 60px;
+    }
+
+    html {
+      font-size: 16px;
+    }
+    body.profile-vision {
+      font-size: 18.5px;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      transition: background-color 0.2s ease, color 0.2s ease;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4, .font-nunito {
+      font-family: 'Nunito', 'Plus Jakarta Sans', sans-serif;
+    }
+
+    /* Tactile Bento Card */
+    .bento-card {
+      background-color: var(--bg-card);
+      border: 2px solid var(--border-card);
+      border-radius: 26px;
+      box-shadow: 0 3px 0 rgba(30, 36, 43, 0.04);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .bento-card-interactive:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 0 rgba(30, 36, 43, 0.06);
+      border-color: var(--sage);
+    }
+
+    .bento-soft {
+      background-color: var(--bg-soft);
+      border: 1.5px solid var(--border-card);
+      border-radius: 20px;
+    }
+
+    /* Touch Targets (min 48px, 60px in Vision/Motor profile) */
+    .tactile-btn {
+      min-height: var(--touch-min);
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.12s ease, background-color 0.15s ease, opacity 0.15s ease;
+    }
+    .tactile-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* Semantic Accent Buttons */
+    .btn-sage {
+      background-color: var(--sage);
+      color: #FFFFFF;
+    }
+    body.profile-vision .btn-sage {
+      color: #121417;
+      font-weight: 900;
+    }
+
+    .btn-amber {
+      background-color: var(--amber);
+      color: #FFFFFF;
+    }
+    body.profile-vision .btn-amber {
+      color: #121417;
+      font-weight: 900;
+    }
+
+    .btn-sky {
+      background-color: var(--sky);
+      color: #FFFFFF;
+    }
+    body.profile-vision .btn-sky {
+      color: #121417;
+      font-weight: 900;
+    }
+
+    .pill-sage { background-color: var(--sage-soft); color: var(--sage); }
+    .pill-amber { background-color: var(--amber-soft); color: var(--amber); }
+    .pill-sky { background-color: var(--sky-soft); color: var(--sky); }
+    .pill-plum { background-color: var(--plum-soft); color: var(--plum); }
+
+    /* Book & Lesson Reader Typography */
+    .reader-text {
+      font-size: var(--reader-size);
+      letter-spacing: var(--reader-letter);
+      word-spacing: var(--reader-word);
+      line-height: var(--reader-line);
+    }
+
+    /* Interactive Clickable Word in Book Reader */
+    .book-word {
+      display: inline-block;
+      padding: 2px 4px;
+      margin: 1px 0;
+      border-radius: 8px;
+      cursor: pointer;
+      border-bottom: 2px dashed transparent;
+      transition: background-color 0.12s ease, border-color 0.12s ease;
+    }
+    .book-word:hover {
+      background-color: var(--sky-soft);
+      border-bottom-color: var(--sky);
+    }
+    .book-word.word-selected {
+      background-color: var(--sky);
+      color: #FFFFFF;
+      font-weight: 800;
+    }
+    body.profile-vision .book-word.word-selected {
+      color: #121417;
+    }
+    .book-word.word-spoken {
+      background-color: var(--spoken-bg);
+      color: var(--spoken-text);
+      font-weight: 800;
+      box-shadow: 0 0 0 2px var(--spoken-bg);
+    }
+
+    /* Reading Ruler Line Highlight */
+    .reader-line-block {
+      padding: 10px 14px;
+      border-radius: 16px;
+      border-left: 4px solid transparent;
+      transition: background-color 0.15s ease, opacity 0.15s ease;
+    }
+    .reading-ruler-on .reader-line-block {
+      opacity: 0.42;
+    }
+    .reading-ruler-on .reader-line-block.ruler-active {
+      opacity: 1;
+      background-color: var(--ruler-bg);
+      border-left-color: var(--amber);
+    }
+
+    /* Calm Breathing Bubble Animation */
+    @keyframes gentleBreathe {
+      0%, 100% { transform: scale(0.86); }
+      50% { transform: scale(1.12); }
+    }
+    .breathe-bubble {
+      animation: gentleBreathe 5s ease-in-out infinite;
+    }
+
+    /* Hide horizontal scrollbar cleanly */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  
+/* ===================================================================== */
+/* 2. RESPONSIVE & POLISH LAYER — профессиональный адаптивный дизайн      */
+/* ===================================================================== */
+
+:root {
+  --header-offset: 148px; /* высота шапки + отступ, пересчитывается JS */
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+::selection {
+  background-color: var(--sky-soft);
+  color: var(--text-main);
+}
+body.profile-vision ::selection {
+  background-color: var(--sky);
+  color: #121417;
+}
+
+/* Скроллбар (только на точных указателях) */
+@media (hover: hover) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--border-card);
+    border-radius: 8px;
+    border: 2px solid var(--bg-canvas);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-muted);
+  }
+}
+
+/* Доступный focus-ring */
+:focus-visible {
+  outline: 3px solid var(--sky);
+  outline-offset: 2px;
+  border-radius: 14px;
+}
+
+/* Поля ввода: мягкое кольцо вместо «focus:outline-none» */
+input.bento-soft:focus,
+textarea.bento-soft:focus {
+  outline: none;
+  border-color: var(--sky);
+  box-shadow: 0 0 0 3px var(--sky-soft);
+}
+
+/* Отключённые кнопки */
+.tactile-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.tactile-btn:disabled:active {
+  transform: none;
+}
+
+/* Hover-подъём только для устройств с точным наведением */
+@media (hover: none) {
+  .bento-card-interactive:hover {
+    transform: none;
+    box-shadow: 0 3px 0 rgba(30, 36, 43, 0.04);
+    border-color: var(--border-card);
+  }
+}
+
+/* Шапка: safe-area сверху + тень при прокрутке */
+header {
+  padding-top: env(safe-area-inset-top);
+}
+header.header-scrolled {
+  box-shadow: 0 10px 30px -18px rgba(30, 36, 43, 0.28);
+}
+
+/* Линейные иконки интерфейса (SVG, stroke=currentColor) */
+.qi-icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+  vertical-align: -0.18em;
+}
+
+/* Читалка: комфортная мера строки на широких экранах */
+.reader-text {
+  max-width: 68ch;
+}
+.reader-line-block {
+  padding: 10px 12px;
+}
+@media (min-width: 640px) {
+  .reader-line-block {
+    padding: 10px 16px;
+  }
+}
+
+/* Липкая панель помощника слов: отступ от реальной высоты шапки */
+.reader-aside {
+  position: -webkit-sticky;
+  position: sticky;
+}
+@media (min-width: 1024px) {
+  .reader-aside {
+    top: var(--header-offset);
+  }
+}
+
+/* Тост: на мобайле — во всю ширину, с учётом safe-area */
+#status-toast {
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  max-width: none;
+}
+@media (min-width: 640px) {
+  #status-toast {
+    left: auto;
+    right: 1.25rem;
+    max-width: 24rem;
+  }
+}
+
+/* Спокойный перерыв: bottom-sheet на мобайле, диалог на десктопе */
+@media (max-width: 639px) {
+  #calm-break-modal {
+    padding: 0;
+    align-items: stretch;
+  }
+  #calm-break-modal > .bento-card {
+    max-width: none;
+    height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 28px 28px 0 0;
+    border-bottom: none;
+    overflow-y: auto;
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  }
+}
+@media (min-width: 640px) {
+  #calm-break-modal {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Шторка выбора режима ребёнка: bottom-sheet на мобайле, диалог на десктопе */
+@media (max-width: 639px) {
+  #profile-picker-modal {
+    padding: 0;
+  }
+  #profile-picker-modal > .bento-card {
+    border-radius: 28px 28px 0 0;
+    border-bottom: none;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+}
+@media (min-width: 640px) {
+  #profile-picker-modal > .bento-card {
+    border-radius: 1.5rem;
+  }
+}
+
+/* Подвал: safe-area снизу + запас под фиксированный таб-бар на мобайле */
+footer.site-footer {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+}
+@media (max-width: 1023px) {
+  footer.site-footer {
+    margin-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Уважение к prefers-reduced-motion (кроме дыхательного круга — его суть) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+  .breathe-bubble {
+    animation: gentleBreathe 8s ease-in-out infinite !important;
+  }
+}
+
+/* Узкие телефоны: чуть мягче скругления и плотнее сетка хабов */
+@media (max-width: 380px) {
+  .bento-card {
+    border-radius: 20px;
+  }
+}
+
+/* Правое затухание скроллируемых рядов шапки (только когда контент выходит за край) */
+.fade-edge {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent 100%);
+}
+
+/* =================================================================== */
+/* FLOATING ASSISTANT: mascot bob + mic pulse + memory items           */
+/* =================================================================== */
+@keyframes mascot-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-7px) rotate(2deg); }
+}
+#assistant-fab { position: fixed; }
+#assistant-fab.is-active { animation: none; }
+
+@keyframes mic-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(227, 85, 72, 0.5); }
+  100% { box-shadow: 0 0 0 16px rgba(227, 85, 72, 0); }
+}
+#assistant-mic-btn.is-recording {
+  background: var(--red, #E35548);
+  color: #fff;
+  animation: mic-pulse 1.3s ease-out infinite;
+}
+
+.assistant-recent-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--text-main);
+  background: var(--bg-soft);
+  border: 1.5px solid var(--border-card);
+}
+.assistant-recent-item .dot {
+  width: 7px; height: 7px; border-radius: 999px;
+  margin-top: 5px; flex: none;
+  background: var(--sage);
+}
+.assistant-recent-item time {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex: none;
+  padding-top: 2px;
+}
+
+/* Чат «Твой друг»: пузыри сообщений */
+.chat-bubble {
+  max-width: 86%;
+  padding: 9px 12px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  word-break: break-word;
+}
+.chat-child {
+  align-self: flex-end;
+  background: var(--sky);
+  color: #fff;
+  border-radius: 16px 16px 5px 16px;
+}
+.chat-friend {
+  align-self: flex-start;
+  background: var(--bg-soft);
+  color: var(--text-main);
+  border: 1.5px solid var(--border-card);
+  border-radius: 16px 16px 16px 5px;
+}
+.chat-friend .chat-speak-btn {
+  flex: none;
+  width: 26px; height: 26px;
+  border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  border: none;
+  background: var(--bg-card);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 0;
+}
+.chat-friend .chat-speak-btn:active { transform: scale(0.9); }
+.chat-thinking { opacity: 0.6; font-style: italic; }
+
+@keyframes insights-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+#insights-modal:not(.hidden) > div { animation: insights-in 0.22s ease-out; }
+
+@keyframes insights-spin { to { transform: rotate(360deg); } }
+.insights-spinner {
+  width: 34px; height: 34px; border-radius: 999px;
+  border: 4px solid var(--border-card);
+  border-top-color: var(--sage);
+  animation: insights-spin 0.9s linear infinite;
+}

@@ -28,6 +28,7 @@
       // AI Lesson Adapter State
       adapterData: null,
       adapterQuizAnswer: null,
+      adapterPresetKey: null,    // ключ последнего загруженного пресета (water|silk)
 
       // Magic ToDo State
       todoTaskTitle: "",
@@ -303,6 +304,19 @@
       });
       window.scrollTo({ top: 0, behavior: state.profile === "asd" ? "auto" : "smooth" });
       renderAll();
+      trackUsage(viewName);
+    }
+
+    // Статистика использования разделов (для родительской страницы)
+    function trackUsage(section) {
+      if (!section || section === "hub") return;
+      try {
+        fetch("/api/usage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ section })
+        }).catch(() => {});
+      } catch (e) {}
     }
 
     // Calm Break Breathing Modal
@@ -444,6 +458,7 @@
       const preset = ADAPTER_PRESETS[key][state.lang];
       document.getElementById("adapter-input-title").value = preset.title;
       document.getElementById("adapter-input-text").value = preset.text;
+      state.adapterPresetKey = key;
       state.adapterData = preset;
       state.adapterQuizAnswer = null;
       if (!silent) renderAdapterOutput();
@@ -452,8 +467,8 @@
     async function runLessonAdapterAI() {
       const titleVal = document.getElementById("adapter-input-title").value.trim();
       const textVal = document.getElementById("adapter-input-text").value.trim();
-      if (!textVal) {
-        showToast(state.lang === "ru" ? "Введите текст урока" : "Сабақ мәтінін енгізіңіз", "⚠️");
+      if (!textVal && !titleVal) {
+        showToast(state.lang === "ru" ? "Введите тему или текст урока" : "Тақырып немесе мәтін енгізіңіз", "⚠️");
         return;
       }
 
@@ -462,12 +477,28 @@
       btn.disabled = true;
       spinner.classList.remove("hidden");
 
+      // Если в поле остался стартовый учебный абзац из пресета, а пользователь
+      // ввёл свою тему — адаптируем по теме, а не по чужому параграфу.
+      // (Сравнение нормализованное и со всеми пресетами — не зависит от порядка кликов)
+      let sendText = textVal;
+      if (sendText && titleVal) {
+        const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+        const l10nPresets = Object.values(ADAPTER_PRESETS).map((p) => p[state.lang]).filter(Boolean);
+        const matched = l10nPresets.find((p) => norm(p.text) === norm(textVal));
+        const titleIsPreset = l10nPresets.some((p) => norm(p.title) === norm(titleVal));
+        if (matched && !titleIsPreset) {
+          sendText = "";
+          // убираем старый текст из поля, чтобы поведение было прозрачным
+          document.getElementById("adapter-input-text").value = "";
+        }
+      }
+
       let parsed = null;
       try {
         const res = await fetch("/api/adapter", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: titleVal, text: textVal, lang: state.lang })
+          body: JSON.stringify({ title: titleVal, text: sendText, lang: state.lang })
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         parsed = await res.json();
@@ -1501,7 +1532,8 @@
     // ГОЛОСОВЫЙ АССИСТЕНТ (маскот Qamqor):
     //  - плавающая кнопка в правом нижнем углу
     //  - клик -> панель: STT (Web Speech API, ru-RU / kk-KZ) речи ребёнка
-    //  - все реплики сохраняются в SQLite (POST /api/utterances)
+    //  - это чат «Твой друг»: ребёнок пишет или диктует, ИИ отвечает поддержкой
+    //  - все реплики сохраняются в SQLite (POST /api/chat)
     //  - «Родительский взгляд» -> POST /api/insights (ИИ-агент аналитик)
     // =====================================================================
 
@@ -1511,7 +1543,10 @@
       recording: false,
       sr: null,
       finalText: "",
-      micError: false
+      micError: false,
+      history: [],        // {id, role: 'child'|'friend', text, created_at}
+      busy: false,        // ожидание ответа ИИ
+      lastFriendText: ""  // последний ответ друга (для TTS)
     };
 
     function renderAssistant() {
@@ -1528,8 +1563,10 @@
       set("ui-insights-title", t.insightsTitle);
       set("ui-insights-sub", t.insightsSub);
       set("ui-insights-close", t.insightsClose);
-      const ph = document.getElementById("assistant-text-input");
-      if (ph) ph.placeholder = t.assistantFallbackPh;
+      const ph = document.getElementById("assistant-chat-input");
+      if (ph) ph.placeholder = t.chatPlaceholder;
+      const sendBtn = document.getElementById("assistant-send-btn");
+      if (sendBtn) sendBtn.classList.toggle("hidden", assistant.recording);
 
       const micBtn = document.getElementById("assistant-mic-btn");
       if (micBtn) micBtn.classList.toggle("is-recording", assistant.recording);
@@ -1550,31 +1587,116 @@
       }
     }
 
-    async function loadAssistantRecent() {
+    async function loadChat() {
       try {
-        const res = await fetch("/api/utterances?limit=30");
+        const res = await fetch("/api/messages?limit=30");
         if (!res.ok) return;
         const data = await res.json();
-        const items = data.items || [];
+        assistant.history = data.items || [];
         const total = data.total || 0;
-        const t = UI_STRINGS[state.lang];
-        document.getElementById("assistant-count").textContent = total + " " + t.assistantPhrases;
         const badge = document.getElementById("assistant-fab-badge");
         if (badge) {
           badge.textContent = total > 99 ? "99+" : String(total);
           badge.classList.toggle("hidden", total === 0);
         }
-        const box = document.getElementById("assistant-recent");
-        if (!items.length) {
-          box.innerHTML = `<div class="text-xs px-1" style="color: var(--text-muted);">${t.assistantEmpty}</div>`;
-          return;
-        }
-        box.innerHTML = items.slice(0, 8).map((u) =>
-          `<div class="assistant-recent-item"><span class="dot"></span><span class="min-w-0 break-words">${escapeHtml(u.text)}</span><time>${assistantTimeLabel(u.created_at)}</time></div>`
-        ).join("");
+        renderChat();
       } catch (e) {
         /* сеть недоступна — молча */
       }
+    }
+
+    function renderChat() {
+      const t = UI_STRINGS[state.lang];
+      const box = document.getElementById("assistant-chat");
+      if (!box) return;
+      const items = assistant.history;
+      if (!items.length) {
+        box.innerHTML = `<div class="chat-bubble chat-friend">${escapeHtml(t.chatEmpty)}</div>`;
+        return;
+      }
+      box.innerHTML = items.map((m) => {
+        if (m.role === "child") {
+          return `<div class="chat-bubble chat-child">${escapeHtml(m.text)}</div>`;
+        }
+        return `<div class="chat-bubble chat-friend">
+          <span class="break-words">${escapeHtml(m.text)}</span>
+          <button onclick="speakChatMessage(${m.id})" class="chat-speak-btn" aria-label="${t.chatReadAloud}" title="${t.chatReadAloud}">🔊</button>
+        </div>`;
+      }).join("");
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function speakChatMessage(id) {
+      const m = assistant.history.find((x) => x.id === id);
+      if (m) speakPhraseSimple(m.text, 0.9);
+    }
+
+    function assistantChatKeydown(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendChatFromInput();
+      }
+    }
+
+    function sendChatFromInput() {
+      const input = document.getElementById("assistant-chat-input");
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text || assistant.busy) return;
+      input.value = "";
+      sendChat(text);
+    }
+
+    async function sendChat(text) {
+      text = String(text || "").trim().slice(0, 500);
+      if (!text || assistant.busy) return;
+      assistant.busy = true;
+      const sendBtn = document.getElementById("assistant-send-btn");
+      if (sendBtn) sendBtn.disabled = true;
+
+      // Оптимистично: сначала показываем реплику ребёнка и «думает…»
+      assistant.history.push({ id: 0, role: "child", text, created_at: new Date().toISOString() });
+      renderChat();
+      const box = document.getElementById("assistant-chat");
+      let thinking = null;
+      if (box) {
+        thinking = document.createElement("div");
+        thinking.id = "assistant-thinking";
+        thinking.className = "chat-bubble chat-friend chat-thinking";
+        thinking.textContent = UI_STRINGS[state.lang].chatThinking;
+        box.appendChild(thinking);
+        box.scrollTop = box.scrollHeight;
+      }
+      const removeThinking = () => { if (thinking) { thinking.remove(); thinking = null; } };
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, lang: state.lang })
+        });
+        const data = await res.json().catch(() => ({}));
+        removeThinking();
+        const t = UI_STRINGS[state.lang];
+        const reply = res.ok && data && data.friend
+          ? data.friend
+          : (state.lang === "ru" ? "Мне пока не удалось ответить — попробуй ещё разок 💛" : "Мен жауап бере алмадым — қайталап көр 💛");
+        assistant.history.push({ id: Date.now(), role: "friend", text: reply, created_at: new Date().toISOString() });
+        assistant.lastFriendText = reply;
+        renderChat();
+        // TTS — читаем ответ друга голосом (как и весь голосовой слой приложения)
+        speakPhraseSimple(reply, 0.92);
+      } catch (e) {
+        removeThinking();
+        assistant.history.push({
+          id: Date.now(), role: "friend",
+          text: state.lang === "ru" ? "Мне пока не удалось ответить — попробуй ещё разок 💛" : "Мен жауап бере алмадым — қайталап көр 💛",
+          created_at: new Date().toISOString()
+        });
+        renderChat();
+      }
+      assistant.busy = false;
+      if (sendBtn) sendBtn.disabled = false;
     }
 
     function toggleAssistant(force) {
@@ -1583,7 +1705,7 @@
       if (panel) panel.classList.toggle("hidden", !assistant.open);
       const fab = document.getElementById("assistant-fab");
       if (fab) fab.classList.toggle("is-active", assistant.open);
-      if (assistant.open) loadAssistantRecent();
+      if (assistant.open) loadChat();
     }
 
     function toggleAssistantMic() {
@@ -1620,7 +1742,7 @@
       rec.onend = () => {
         assistant.recording = false;
         const text = assistant.finalText.trim();
-        if (text) saveAssistantUtterance(text);
+        if (text) sendChat(text);
         else renderAssistant();
       };
       rec.onerror = (e) => {
@@ -1639,37 +1761,6 @@
         assistant.recording = false;
         renderAssistant();
       }
-    }
-
-    async function saveAssistantUtterance(text) {
-      const live = document.getElementById("assistant-live");
-      try {
-        const res = await fetch("/api/utterances", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: text.slice(0, 500), lang: state.lang })
-        });
-        if (res.ok) {
-          const t = UI_STRINGS[state.lang];
-          if (live) {
-            live.textContent = t.assistantSaved;
-            live.style.color = "var(--sage)";
-            setTimeout(() => { live.classList.add("hidden"); live.style.color = ""; }, 2500);
-          }
-          loadAssistantRecent();
-        }
-      } catch (e) {
-        /* офлайн: фрейм останется на экране */
-      }
-      assistant.finalText = "";
-    }
-
-    function saveAssistantText() {
-      const input = document.getElementById("assistant-text-input");
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = "";
-      saveAssistantUtterance(text);
     }
 
     // ---------- Родительский взгляд (ИИ-агент аналитик) ----------
